@@ -14,14 +14,14 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-// 远程任务拆解功能：调用百度飞桨 AIStudio 的 OpenAI 兼容大模型接口完成任务拆解。
+// 远程任务拆解功能：调用火山引擎 ARK 的 OpenAI 兼容大模型接口完成任务拆解。
 // 失败时抛异常，由上层 AiTaskPlannerRepository 兜底为本地拆解。
 class RemoteAiTaskPlanner(
     private val client: OkHttpClient = defaultClient()
 ) : AiTaskPlanner {
 
     override suspend fun breakdown(request: AiBreakdownRequest): AiBreakdownResult = withContext(Dispatchers.IO) {
-        require(PaddleAiConfig.hasToken) { "未配置飞桨 AIStudio 访问令牌" }
+        require(PaddleAiConfig.hasToken) { "未配置火山引擎 ARK 访问令牌" }
 
         val body = buildRequestBody(request)
         val httpRequest = Request.Builder()
@@ -34,7 +34,7 @@ class RemoteAiTaskPlanner(
         client.newCall(httpRequest).execute().use { response ->
             val raw = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                throw IllegalStateException("飞桨接口返回 ${response.code}: ${raw.take(200)}")
+                throw IllegalStateException("ARK 接口返回 ${response.code}: ${raw.take(200)}")
             }
             parseResponse(raw, request)
         }
