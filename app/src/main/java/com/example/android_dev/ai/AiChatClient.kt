@@ -14,7 +14,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-// AI 对话客户端功能：调用百度飞桨 AIStudio 的对话补全接口，支持多轮上下文。
+// AI 对话客户端功能：调用火山引擎 ARK 的对话补全接口，支持多轮上下文。
 class AiChatClient(
     private val client: OkHttpClient = defaultClient()
 ) {
@@ -25,7 +25,7 @@ class AiChatClient(
 
     // 发送功能：把系统提示 + 历史对话发给模型，返回 AI 回复文本。
     suspend fun send(history: List<ChatMessage>): String = withContext(Dispatchers.IO) {
-        require(PaddleAiConfig.hasToken) { "未配置飞桨 AIStudio 访问令牌" }
+        require(PaddleAiConfig.hasToken) { "未配置火山引擎 ARK 访问令牌" }
 
         val messages = JSONArray().apply {
             put(JSONObject().put("role", "system").put("content", systemPrompt))
@@ -48,7 +48,7 @@ class AiChatClient(
         client.newCall(httpRequest).execute().use { response ->
             val raw = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                throw IllegalStateException("飞桨接口返回 ${response.code}: ${raw.take(200)}")
+                throw IllegalStateException("ARK 接口返回 ${response.code}: ${raw.take(200)}")
             }
             JSONObject(raw)
                 .getJSONArray("choices")
@@ -61,7 +61,7 @@ class AiChatClient(
 
     // 任务提取功能：把一段 AI 计划文本解析成结构化任务列表，便于一键加入计划。
     suspend fun extractTasks(planText: String): List<ExtractedTask> = withContext(Dispatchers.IO) {
-        require(PaddleAiConfig.hasToken) { "未配置飞桨 AIStudio 访问令牌" }
+        require(PaddleAiConfig.hasToken) { "未配置火山引擎 ARK 访问令牌" }
 
         val prompt = buildString {
             append("下面是一段计划/建议文本。请从中提取出具体、可执行的待办任务。\n")
@@ -92,7 +92,7 @@ class AiChatClient(
         client.newCall(httpRequest).execute().use { response ->
             val raw = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                throw IllegalStateException("飞桨接口返回 ${response.code}: ${raw.take(200)}")
+                throw IllegalStateException("ARK 接口返回 ${response.code}: ${raw.take(200)}")
             }
             parseExtractedTasks(raw)
         }
