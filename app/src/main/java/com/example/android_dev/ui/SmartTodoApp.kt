@@ -140,6 +140,7 @@ fun SmartTodoApp(
                     onQuickAddTask = onQuickAddTask,
                     onToggleTask = onToggleTask,
                     onDeleteTask = onDeleteTask,
+                    onEditTask = { editingTask = it },
                     countdowns = countdowns  // === 新增传参 ===
                 )
 

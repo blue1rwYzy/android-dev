@@ -100,6 +100,7 @@ fun TodayScreen(
     onQuickAddTask: (String, String) -> Unit,
     onToggleTask: (SmartTask) -> Unit,
     onDeleteTask: (SmartTask) -> Unit = {},
+    onEditTask: (SmartTask) -> Unit = {},
     countdowns: List<Countdown> = emptyList()  // 新增
 ) {
     val today = remember { LocalDate.now() }
@@ -177,7 +178,7 @@ fun TodayScreen(
                     tasks = overdue,
                     onComplete = onToggleTask,
                     onDelete = onDeleteTask,
-                    onEdit = { }
+                    onEdit = onEditTask
                 )
             }
         }
@@ -189,7 +190,7 @@ fun TodayScreen(
                 tasks = todayTasks,
                 onComplete = onToggleTask,
                 onDelete = onDeleteTask,
-                onEdit = { /* 编辑在列表/看板做，今日气泡页不提供 */ }
+                onEdit = onEditTask
             )
         }
 
@@ -201,7 +202,7 @@ fun TodayScreen(
                     tasks = later,
                     onComplete = onToggleTask,
                     onDelete = onDeleteTask,
-                    onEdit = { }
+                    onEdit = onEditTask
                 )
             }
         }
