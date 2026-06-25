@@ -139,6 +139,7 @@ fun SmartTodoApp(
                     onSignalChange = onSignalChange,
                     onQuickAddTask = onQuickAddTask,
                     onToggleTask = onToggleTask,
+                    onDeleteTask = onDeleteTask,
                     countdowns = countdowns  // === 新增传参 ===
                 )
 

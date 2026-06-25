@@ -5,20 +5,15 @@ package com.example.android_dev.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -51,126 +46,117 @@ fun TaskCard(
     onToggleTask: () -> Unit,
     onDeleteTask: () -> Unit,
     onEditTask: (() -> Unit)? = null,
-    onUpdateTask: ((SmartTask) -> Unit)? = null
+    onUpdateTask: ((SmartTask) -> Unit)? = null,
+    onFocusTask: (() -> Unit)? = null
 ) {
     val prediction = SmartTaskEngine.predictTime(task, signal)
-    // 展开态：点卡片主体在下方展开子任务清单。
+    // 展开态：点卡片主体在下方展开子任务清单与操作按钮。
     var expanded by remember { mutableStateOf(false) }
+    // 微信风格：紧凑卡片，圆角更小、留白更省、信息一行可读。已完成标题降透明度并加删除线感。
     Card(
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .width(5.dp)
-                    .fillMaxHeight()
-                    .heightIn(min = 120.dp)
-                    .background(task.priority.tint())
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(start = 12.dp, top = 10.dp, end = 12.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // 左侧勾选：缩小占位，仅完成态着主色，贴近微信的简洁。
+            Checkbox(
+                checked = task.isCompleted,
+                onCheckedChange = { onToggleTask() },
+                modifier = Modifier.size(22.dp)
             )
+
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Checkbox(checked = task.isCompleted, onCheckedChange = { onToggleTask() })
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { expanded = !expanded }
-                    ) {
-                        Text(
-                            task.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+                // 标题行：标题 + 右侧轻量优先级圆点（已完成则不强调）。
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        task.title,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = if (task.isCompleted)
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (!task.isCompleted) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(task.priority.tint())
                         )
-                        if (task.description.isNotBlank()) {
-                            Text(
-                                task.description,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
                     }
-                    StatusBadge(
-                        text = if (task.isCompleted) "完成" else task.priority.label,
-                        color = if (task.isCompleted) MaterialTheme.colorScheme.outline else task.priority.tint()
+                }
+
+                if (task.description.isNotBlank()) {
+                    Text(
+                        task.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // 子任务进度条（点击可展开/收起子任务清单）。
+                // 单行元信息：分类 · 截止/逾期 · 预估耗时 · 习惯连续，用「·」分隔代替多枚芯片。
+                MetaLine(task = task, prediction = prediction)
+
+                // 子任务细进度条：仅在有子任务时出现，高度更细。
                 if (task.subtasks.isNotEmpty()) {
-                    Column(
-                        modifier = Modifier.clickable { expanded = !expanded },
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            "子任务 ${task.subtasks.count { it.done }}/${task.subtasks.size} ${if (expanded) "▲ 收起" else "▼ 展开"}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        LinearProgressIndicator(
-                            progress = { task.subtaskProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(5.dp)
-                                .clip(RoundedCornerShape(8.dp)),
-                            color = task.priority.tint(),
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    }
+                    LinearProgressIndicator(
+                        progress = { task.subtaskProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        color = task.priority.tint(),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 }
+            }
+        }
 
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    AssistChip(onClick = {}, label = { Text(task.category.label) })
-                    AssistChip(onClick = {}, label = { Text("状态 ${task.status.label}") })
-                    task.dueDate?.let {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text(if (task.isOverdue) "逾期 $it" else "截止 $it") }
-                        )
-                    }
-                    AssistChip(onClick = {}, label = { Text("${prediction.minutes} 分") })
-                    task.tags.forEach { tag -> AssistChip(onClick = {}, label = { Text("#$tag") }) }
-                    if (task.isHabit) AssistChip(onClick = {}, label = { Text("连续 ${task.streak} 天") })
+        // 展开区：子任务清单 + 操作按钮，收起时卡片保持紧凑。
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (onUpdateTask != null && (task.subtasks.isNotEmpty() || !task.isHabit)) {
+                    SubtaskList(
+                        subtasks = task.subtasks,
+                        onSubtasksChange = { updated ->
+                            onUpdateTask(task.copy(subtasks = updated))
+                        }
+                    )
                 }
-
-                // 子任务展开区：点击卡片后在下方展开，可勾选/编辑/删除/新增子任务。
-                if (onUpdateTask != null) {
-                    AnimatedVisibility(visible = expanded) {
-                        SubtaskList(
-                            subtasks = task.subtasks,
-                            onSubtasksChange = { updated ->
-                                onUpdateTask(task.copy(subtasks = updated))
-                            }
-                        )
-                    }
-                }
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 创建时间：显示在底部操作行左侧。
                     Text(
                         text = "创建于 ${formatCreatedAt(task.createdAt)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 专注入口：未完成任务可一键进入番茄钟专注模式。
+                        if (onFocusTask != null && !task.isCompleted) {
+                            TextButton(onClick = onFocusTask) { Text("🍅 专注") }
+                        }
                         onEditTask?.let {
                             TextButton(onClick = it) { Text("编辑") }
                         }
@@ -180,6 +166,26 @@ fun TaskCard(
             }
         }
     }
+}
+
+// 单行元信息功能：把分类、截止、预估耗时、标签和习惯连续天数压缩成一行「·」分隔文本，节省高度。
+@Composable
+private fun MetaLine(task: SmartTask, prediction: com.example.android_dev.domain.TimePrediction) {
+    val parts = buildList {
+        add(task.category.label)
+        task.dueDate?.let { add(if (task.isOverdue) "逾期$it" else "截止$it") }
+        add("${prediction.minutes}分")
+        if (task.isHabit) add("连续${task.streak}天")
+        task.tags.firstOrNull()?.let { add("#$it") }
+    }
+    val overdue = task.isOverdue && !task.isCompleted
+    Text(
+        text = parts.joinToString("  ·  "),
+        style = MaterialTheme.typography.labelSmall,
+        color = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 // 创建时间格式化功能：把毫秒时间戳转成本地「yyyy-MM-dd HH:mm」文本。

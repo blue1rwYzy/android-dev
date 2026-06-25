@@ -104,10 +104,15 @@ fun ProfileScreen(
         Text("外观主题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AppPalette.entries.forEach { option ->
+                val emoji = when (option) {
+                    AppPalette.WECHAT -> "💬"
+                    AppPalette.PINK_BLUE -> "🌸"
+                    AppPalette.TEAL -> "🌿"
+                }
                 FilterChip(
                     selected = palette == option,
                     onClick = { onChangeTheme(option) },
-                    label = { Text(if (option == AppPalette.PINK_BLUE) "🌸 ${option.label}" else "🌿 ${option.label}") }
+                    label = { Text("$emoji ${option.label}") }
                 )
             }
         }

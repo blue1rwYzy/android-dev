@@ -30,12 +30,21 @@ import androidx.compose.ui.unit.dp
 import com.example.android_dev.domain.SmartTask
 import com.example.android_dev.domain.TaskPriority
 import com.example.android_dev.domain.UserCognitiveSignal
+import com.example.android_dev.ui.components.EisenhowerMatrix
+import com.example.android_dev.ui.components.FocusModeDialog
 import com.example.android_dev.ui.components.TaskCard
+import java.time.LocalTime
 
 // 列表排序方式功能：决定每个完成分组内部的排序规则。
 private enum class TaskSortMode(val label: String) {
     CREATED("按创建时间"),
     PRIORITY("按优先级")
+}
+
+// 列表视图模式功能：在传统「列表」与「智能四象限」之间切换。
+private enum class TaskViewMode(val label: String) {
+    LIST("列表"),
+    MATRIX("四象限")
 }
 
 // 列表视图功能：展示、按优先级筛选、排序、完成、编辑和删除任务。
@@ -51,6 +60,10 @@ fun TaskScreen(
     var selectedPriorityName by rememberSaveable { mutableStateOf<String?>(null) }
     var sortModeName by rememberSaveable { mutableStateOf(TaskSortMode.CREATED.name) }
     var showCompleted by rememberSaveable { mutableStateOf(true) }
+    var viewModeName by rememberSaveable { mutableStateOf(TaskViewMode.LIST.name) }
+    // 当前进入专注模式的任务（null 表示未开启专注弹层）。
+    var focusTask by remember { mutableStateOf<SmartTask?>(null) }
+    val viewMode = TaskViewMode.entries.firstOrNull { it.name == viewModeName } ?: TaskViewMode.LIST
     val selectedPriority = selectedPriorityName?.let { name ->
         TaskPriority.entries.firstOrNull { it.name == name }
     }
@@ -88,12 +101,25 @@ fun TaskScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("我的任务", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("显示已完成", style = MaterialTheme.typography.labelMedium)
-                    Switch(checked = showCompleted, onCheckedChange = { showCompleted = it })
+                if (viewMode == TaskViewMode.LIST) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("显示已完成", style = MaterialTheme.typography.labelMedium)
+                        Switch(checked = showCompleted, onCheckedChange = { showCompleted = it })
+                    }
                 }
             }
-            // 优先级筛选行。
+            // 视图切换行：列表 / 智能四象限。
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TaskViewMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = viewMode == mode,
+                        onClick = { viewModeName = mode.name },
+                        label = { Text(if (mode == TaskViewMode.MATRIX) "🎯 ${mode.label}" else mode.label) }
+                    )
+                }
+            }
+            // 优先级筛选行（仅列表视图显示）。
+            if (viewMode == TaskViewMode.LIST) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
                     FilterChip(
@@ -129,31 +155,54 @@ fun TaskScreen(
                     )
                 }
             }
+            } // end if LIST
         }
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (filtered.isEmpty()) {
-                item {
-                    Text(
-                        "还没有任务，点右下角 + 新建一个吧。",
-                        modifier = Modifier.padding(top = 24.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+
+        when (viewMode) {
+            TaskViewMode.MATRIX -> EisenhowerMatrix(
+                tasks = tasks,
+                signal = signal,
+                nowHour = LocalTime.now().hour,
+                onToggleTask = onToggleTask,
+                onEditTask = onEditTask,
+                onFocusTask = { focusTask = it }
+            )
+
+            TaskViewMode.LIST -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (filtered.isEmpty()) {
+                    item {
+                        Text(
+                            "还没有任务，点右下角 + 新建一个吧。",
+                            modifier = Modifier.padding(top = 24.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                items(filtered, key = { it.id }) { task ->
+                    TaskCard(
+                        task = task,
+                        signal = signal,
+                        onToggleTask = { onToggleTask(task) },
+                        onDeleteTask = { onDeleteTask(task) },
+                        onEditTask = { onEditTask(task) },
+                        onUpdateTask = onUpdateTask,
+                        onFocusTask = { focusTask = task }
                     )
                 }
             }
-            items(filtered, key = { it.id }) { task ->
-                TaskCard(
-                    task = task,
-                    signal = signal,
-                    onToggleTask = { onToggleTask(task) },
-                    onDeleteTask = { onDeleteTask(task) },
-                    onEditTask = { onEditTask(task) },
-                    onUpdateTask = onUpdateTask
-                )
-            }
         }
+    }
+
+    // 专注模式弹层：完成后把任务标记完成（复用 onToggleTask，写入完成记录 / 成就）。
+    focusTask?.let { task ->
+        FocusModeDialog(
+            task = task,
+            onComplete = { onToggleTask(task) },
+            onDismiss = { focusTask = null }
+        )
     }
 }

@@ -3,6 +3,12 @@
 package com.example.android_dev.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,12 +28,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -56,8 +59,16 @@ import com.example.android_dev.domain.SmartTask
 import com.example.android_dev.domain.TaskRecommendation
 import com.example.android_dev.domain.UserCognitiveSignal
 import com.example.android_dev.engine.SmartTaskEngine
+import com.example.android_dev.domain.TaskCategory
+import com.example.android_dev.ui.components.ActivityRing
+import com.example.android_dev.ui.components.ActivityRingsCard
+import com.example.android_dev.ui.components.CategorySlice
 import com.example.android_dev.ui.components.CognitiveControls
 import com.example.android_dev.ui.components.CognitiveStatusPanel
+import com.example.android_dev.ui.components.CompletionCheckbox
+import com.example.android_dev.ui.components.CountdownBubble
+import com.example.android_dev.ui.components.SwipeableTaskRow
+import com.example.android_dev.ui.components.TaskBubbleCloud
 import com.example.android_dev.ui.components.MinimalFocusPanel
 import com.example.android_dev.ui.components.SchedulePanel
 import com.example.android_dev.ui.components.StatusBadge
@@ -88,6 +99,7 @@ fun TodayScreen(
     onSignalChange: (UserCognitiveSignal) -> Unit,
     onQuickAddTask: (String, String) -> Unit,
     onToggleTask: (SmartTask) -> Unit,
+    onDeleteTask: (SmartTask) -> Unit = {},
     countdowns: List<Countdown> = emptyList()  // 新增
 ) {
     val today = remember { LocalDate.now() }
@@ -108,11 +120,6 @@ fun TodayScreen(
     var forceFullSchedule by rememberSaveable { mutableStateOf(false) }
     val simplified = shouldSimplify && !forceFullSchedule
 
-    // 折叠态记忆：各分组与底部抽屉的展开状态。
-    var overdueOpen by rememberSaveable { mutableStateOf(true) }
-    var todayOpen by rememberSaveable { mutableStateOf(true) }
-    var laterOpen by rememberSaveable { mutableStateOf(false) }
-    var advancedOpen by rememberSaveable { mutableStateOf(false) }
     val todayCountdowns = remember(countdowns) {
         countdowns
             .filter { !it.targetDate.isBefore(LocalDate.now()) }
@@ -137,7 +144,8 @@ fun TodayScreen(
                 nextTask = nextTask,
                 nextRecommendation = nextRecommendation,
                 signal = signal,
-                onToggleNext = { nextTask?.let(onToggleTask) }
+                onToggleNext = { nextTask?.let(onToggleTask) },
+                tasks = tasks
             )
         }
 
@@ -150,28 +158,7 @@ fun TodayScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     todayCountdowns.forEach { countdown ->
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.clickable { /* 可选跳转 */ }
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    countdown.title,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                val days = ChronoUnit.DAYS.between(LocalDate.now(), countdown.targetDate).toInt()
-                                Text(
-                                    "还剩 $days 天",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            }
-                        }
+                        CountdownBubble(countdown = countdown, today = today)
                     }
                 }
             }
@@ -182,64 +169,46 @@ fun TodayScreen(
             QuickCapturePanel(onQuickAddTask = onQuickAddTask)
         }
 
-        // 逾期分组。
+        // 逾期分组：气泡云视图（拖动气泡到顶部完成、拖出边界删除、轻点展开）。
         if (overdue.isNotEmpty()) {
-            sectionHeader(
-                key = "h-overdue",
-                title = "逾期",
-                count = overdue.size,
-                open = overdueOpen,
-                tint = { MaterialTheme.colorScheme.error },
-                onToggle = { overdueOpen = !overdueOpen }
+            sectionHeader(key = "h-overdue", title = "逾期", count = overdue.size, tint = { MaterialTheme.colorScheme.error })
+            item(key = "overdue-bubbles") {
+                TaskBubbleCloud(
+                    tasks = overdue,
+                    onComplete = onToggleTask,
+                    onDelete = onDeleteTask,
+                    onEdit = { }
+                )
+            }
+        }
+
+        // 今天分组：气泡云视图。
+        sectionHeader(key = "h-today", title = "今天", count = todayTasks.size, tint = { MaterialTheme.colorScheme.primary })
+        item(key = "today-bubbles") {
+            TaskBubbleCloud(
+                tasks = todayTasks,
+                onComplete = onToggleTask,
+                onDelete = onDeleteTask,
+                onEdit = { /* 编辑在列表/看板做，今日气泡页不提供 */ }
             )
-            if (overdueOpen) {
-                items(overdue, key = { "o-${it.id}" }) { task ->
-                    TodayTaskRow(task = task, signal = signal, today = today, onToggle = { onToggleTask(task) })
-                }
-            }
         }
 
-        // 今天分组。
-        sectionHeader(
-            key = "h-today",
-            title = "今天",
-            count = todayTasks.size,
-            open = todayOpen,
-            tint = { MaterialTheme.colorScheme.primary },
-            onToggle = { todayOpen = !todayOpen }
-        )
-        if (todayOpen) {
-            if (todayTasks.isEmpty()) {
-                item(key = "today-empty") { EmptyHint("今天没有待办，享受片刻轻松 🎉") }
-            } else {
-                items(todayTasks, key = { "t-${it.id}" }) { task ->
-                    TodayTaskRow(task = task, signal = signal, today = today, onToggle = { onToggleTask(task) })
-                }
-            }
-        }
-
-        // 稍后分组。
+        // 稍后分组：气泡云视图。
         if (later.isNotEmpty()) {
-            sectionHeader(
-                key = "h-later",
-                title = "稍后",
-                count = later.size,
-                open = laterOpen,
-                tint = { MaterialTheme.colorScheme.onSurfaceVariant },
-                onToggle = { laterOpen = !laterOpen }
-            )
-            if (laterOpen) {
-                items(later, key = { "l-${it.id}" }) { task ->
-                    TodayTaskRow(task = task, signal = signal, today = today, onToggle = { onToggleTask(task) })
-                }
+            sectionHeader(key = "h-later", title = "稍后", count = later.size, tint = { MaterialTheme.colorScheme.onSurfaceVariant })
+            item(key = "later-bubbles") {
+                TaskBubbleCloud(
+                    tasks = later,
+                    onComplete = onToggleTask,
+                    onDelete = onDeleteTask,
+                    onEdit = { }
+                )
             }
         }
 
-        // 底部「状态与排程」抽屉：默认折叠，保留认知负荷、状态调节、智能排程/专注视图等全部特色功能。
+        // 「状态与排程」区：认知负荷 / 状态调节 / 智能排程，始终展示（不再折叠）。
         item(key = "advanced") {
-            AdvancedDrawer(
-                open = advancedOpen,
-                onToggle = { advancedOpen = !advancedOpen },
+            AdvancedSection(
                 levelLabel = snapshot.level.label,
                 overall = snapshot.overall,
                 tint = snapshot.level.tint()
@@ -258,7 +227,7 @@ fun TodayScreen(
                         TextButton(
                             onClick = { forceFullSchedule = false },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("收起，回到专注模式") }
+                        ) { Text("回到专注模式") }
                     }
                     SchedulePanel(schedule = schedule)
                 }
@@ -267,7 +236,7 @@ fun TodayScreen(
     }
 }
 
-// 顶部进度头功能：左侧问候+日期+「现在做」，右侧完成进度环。
+// 顶部进度头功能：三重活力环可视化（完成率 / 专注 / 习惯连续）+ 分类时间分布条 + 「现在做」高亮条。
 @Composable
 private fun TodayHeaderCard(
     today: LocalDate,
@@ -277,59 +246,83 @@ private fun TodayHeaderCard(
     nextTask: SmartTask?,
     nextRecommendation: TaskRecommendation?,
     signal: UserCognitiveSignal,
-    onToggleNext: () -> Unit
+    onToggleNext: () -> Unit,
+    tasks: List<SmartTask>
 ) {
     val ratio = if (total == 0) 0f else completed.toFloat() / total
     val weekday = today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINA)
-    ElevatedCard(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "${today.monthValue} 月 ${today.dayOfMonth} 日 · $weekday",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (total == 0) "今天还没有任务" else "已完成 $completed / $total",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = snapshot.recommendation,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                // 完成进度环。
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
-                    CircularProgressIndicator(
-                        progress = { ratio },
-                        modifier = Modifier.fillMaxSize(),
-                        strokeWidth = 6.dp,
-                        color = snapshot.level.tint(),
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    Text(percent(ratio), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                }
-            }
 
-            // 「现在做」：把下一步推荐压缩成一行高亮条，点左侧圆圈即完成。
-            nextTask?.let { task ->
+    // 三环数据（全部来自现有数据，不改引擎）：
+    // 1) 完成环：已完成 / 总数。
+    // 2) 专注环：专注力得分 = 1 - 当前认知负荷（负荷越低越能专注），转成百分制评分。
+    // 3) 连续环：最长习惯连续天数 / 7 天目标。
+    val focusScore = (1f - snapshot.overall).coerceIn(0f, 1f)
+    val maxStreak = tasks.filter { it.isHabit }.maxOfOrNull { it.streak } ?: 0
+    val streakGoal = 7
+    val rings = listOf(
+        ActivityRing(
+            progress = ratio,
+            color = MaterialTheme.colorScheme.primary,
+            label = "完成",
+            value = "$completed/$total"
+        ),
+        ActivityRing(
+            progress = focusScore,
+            color = MaterialTheme.colorScheme.tertiary,
+            label = "专注",
+            value = "${(focusScore * 100).toInt()} 分"
+        ),
+        ActivityRing(
+            progress = (maxStreak.toFloat() / streakGoal).coerceIn(0f, 1f),
+            color = MaterialTheme.colorScheme.secondary,
+            label = "连续",
+            value = "$maxStreak 天"
+        )
+    )
+
+    // 分类时间分布：按未完成任务的预估时长在各分类间的占比。
+    val distribution = remember(tasks) {
+        tasks.filterNot { it.isCompleted }
+            .groupBy { it.category }
+            .map { (cat, list) -> CategorySlice(cat, list.sumOf { it.estimatedMinutes }.toFloat()) }
+            .filter { it.fraction > 0f }
+    }
+
+    val dateLine = "${today.monthValue} 月 ${today.dayOfMonth} 日 · $weekday"
+    val headline = if (total == 0) "今天还没有任务" else "今日活力 ${percent(ratio)}"
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ActivityRingsCard(
+            dateLine = dateLine,
+            headline = headline,
+            rings = rings,
+            distribution = distribution,
+            categoryTint = { it.tint() },
+            // 流动强度随未完成任务量提升：任务越多，背景水纹越活跃。
+            flowIntensity = (tasks.count { !it.isCompleted } / 10f).coerceIn(0.2f, 1f)
+        )
+
+        // 「现在做」：把下一步推荐压缩成一行高亮条，带呼吸光晕；右滑直接完成，点左侧圆圈也可完成。
+        nextTask?.let { task ->
                 val prediction = remember(task, signal) { SmartTaskEngine.predictTime(task, signal) }
+                // 呼吸光晕：背景透明度在 0.55~1.0 间缓慢循环，吸引注意而不刺眼。
+                val breathe = rememberInfiniteTransition(label = "nowBreathe")
+                val glow by breathe.animateFloat(
+                    initialValue = 0.55f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1800, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "glow"
+                )
+                val container = MaterialTheme.colorScheme.primaryContainer
+                SwipeableTaskRow(onComplete = onToggleNext) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .background(container.copy(alpha = glow))
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -366,26 +359,22 @@ private fun TodayHeaderCard(
                     }
                     StatusBadge("${prediction.minutes} 分", MaterialTheme.colorScheme.primary)
                 }
+                }
             }
         }
-    }
 }
 
-// 分组标题功能：可点击折叠的小标题，左侧色点 + 标题 + 数量徽章 + 展开箭头。
+// 分组标题功能：静态小标题，左侧色点 + 标题 + 数量徽章（不再折叠，无展开箭头）。
 private fun androidx.compose.foundation.lazy.LazyListScope.sectionHeader(
     key: String,
     title: String,
     count: Int,
-    open: Boolean,
-    tint: @Composable () -> androidx.compose.ui.graphics.Color,
-    onToggle: () -> Unit
+    tint: @Composable () -> androidx.compose.ui.graphics.Color
 ) {
     item(key = key) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onToggle() }
                 .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -402,12 +391,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sectionHeader(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.weight(1f))
-            Icon(
-                imageVector = if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                contentDescription = if (open) "收起" else "展开",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -418,50 +401,61 @@ private fun TodayTaskRow(
     task: SmartTask,
     signal: UserCognitiveSignal,
     today: LocalDate,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     val prediction = remember(task, signal) { SmartTaskEngine.predictTime(task, signal) }
-    Card(
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+    // 滑动手势包裹：右滑完成、左滑删除（露一角信号）。
+    SwipeableTaskRow(onComplete = onToggle, onDelete = onDelete) {
+        Card(
+            shape = RoundedCornerShape(10.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(44.dp)
-                    .background(task.priority.tint())
-            )
-            Checkbox(checked = task.isCompleted, onCheckedChange = { onToggle() })
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(vertical = 8.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    task.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
-                    color = if (task.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.onSurface
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .height(44.dp)
+                        .background(task.priority.tint())
                 )
-                Text(
-                    text = taskMeta(task, today, prediction.minutes),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (task.isOverdue) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                Spacer(modifier = Modifier.width(10.dp))
+                // Todoist 式动画勾选框：完成时填充主色 + 弹性回弹 + 对勾描边。
+                CompletionCheckbox(
+                    checked = task.isCompleted,
+                    tint = task.priority.tint(),
+                    onToggle = onToggle
                 )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 8.dp)
+                ) {
+                    Text(
+                        task.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
+                        color = if (task.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = taskMeta(task, today, prediction.minutes),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (task.isOverdue) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                StatusBadge(text = task.priority.label, color = task.priority.tint())
+                Spacer(modifier = Modifier.width(10.dp))
             }
-            StatusBadge(text = task.priority.label, color = task.priority.tint())
-            Spacer(modifier = Modifier.width(10.dp))
         }
     }
 }
@@ -495,10 +489,9 @@ private fun EmptyHint(text: String) {
 }
 
 // 高级抽屉功能：折叠收纳认知负荷、状态调节、智能排程/专注视图等特色功能，默认折叠不打扰清单。
+// 状态与排程区功能：始终展示（不折叠）的卡片，顶部标题 + 负荷徽章，下方直接铺开内容。
 @Composable
-private fun AdvancedDrawer(
-    open: Boolean,
-    onToggle: () -> Unit,
+private fun AdvancedSection(
     levelLabel: String,
     overall: Float,
     tint: androidx.compose.ui.graphics.Color,
@@ -510,9 +503,7 @@ private fun AdvancedDrawer(
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggle() },
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -525,19 +516,12 @@ private fun AdvancedDrawer(
                     )
                 }
                 StatusBadge("$levelLabel ${percent(overall)}", tint)
-                Icon(
-                    imageVector = if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                    contentDescription = if (open) "收起" else "展开",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
-            AnimatedVisibility(visible = open) {
-                Column(
-                    modifier = Modifier.padding(top = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    content()
-                }
+            Column(
+                modifier = Modifier.padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                content()
             }
         }
     }
@@ -584,6 +568,28 @@ private fun QuickCapturePanel(onQuickAddTask: (String, String) -> Unit) {
             }
             AnimatedVisibility(visible = expanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // 实时解析预览：用现有 DueDateParser 解析日期、SmartTaskEngine.classify 解析分类，输入即浮出 chip。
+                    val parsedDate = remember(text, note) {
+                        com.example.android_dev.ai.DueDateParser.parse("$text $note")
+                    }
+                    val parsedCategory = remember(text, note) {
+                        SmartTaskEngine.classify(text, note)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ParseChip("#${parsedCategory.label}", parsedCategory.tint())
+                        parsedDate?.let {
+                            val label = when {
+                                it.isEqual(LocalDate.now()) -> "今天截止"
+                                else -> "截止 ${it.monthValue}/${it.dayOfMonth}"
+                            }
+                            ParseChip(label, MaterialTheme.colorScheme.primary)
+                        }
+                    }
                     OutlinedTextField(
                         value = note,
                         onValueChange = { note = it },
@@ -591,13 +597,22 @@ private fun QuickCapturePanel(onQuickAddTask: (String, String) -> Unit) {
                         label = { Text("补充信息（可选）") },
                         maxLines = 2
                     )
-                    Text(
-                        text = "本地语义分类 · 时间估算 · 负荷适配",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
         }
+    }
+}
+
+// 解析结果芯片功能：快速捕捉时浮出的彩色小标签，提示已识别的分类/日期。
+@Composable
+private fun ParseChip(text: String, tint: androidx.compose.ui.graphics.Color) {
+    Surface(shape = RoundedCornerShape(8.dp), color = tint.copy(alpha = 0.12f)) {
+        Text(
+            text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = tint
+        )
     }
 }
