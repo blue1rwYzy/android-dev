@@ -81,9 +81,14 @@ fun TaskEditorDialog(
 
     val category = TaskCategory.entries.first { it.name == categoryName }
     val importance = priority.toImportance()
-    val estimate = remember(title, note, category, complexity, signal) {
+    // 自动估算时长：根据标题/说明/分类/复杂度/认知信号推算（仅在用户未手动设定时生效）。
+    val autoEstimate = remember(title, note, category, complexity, signal) {
         SmartTaskEngine.estimateMinutes(title, note, category, complexity.roundToInt(), signal)
     }
+    // 手动设定的任务时长：编辑已有任务时沿用其既有时长；为 null 表示交由自动估算决定。
+    var manualMinutes by remember { mutableStateOf(initialTask?.estimatedMinutes) }
+    // 实际生效的时长：手动值优先，否则用自动估算。
+    val estimate = manualMinutes ?: autoEstimate
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -266,6 +271,58 @@ fun TaskEditorDialog(
 
                 DialogSlider("复杂度", complexity, " ${complexity.roundToInt()}/5") { complexity = it }
 
+                // ===== 任务时长（可手动设定） =====
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("任务时长", style = MaterialTheme.typography.labelLarge)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (manualMinutes != null) {
+                            TextButton(onClick = { manualMinutes = null }) { Text("自动") }
+                        } else {
+                            Text(
+                                "自动估算",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(onClick = {
+                        manualMinutes = (estimate - 5).coerceAtLeast(5)
+                    }) { Text("－5") }
+                    Text(
+                        "$estimate 分钟",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    OutlinedButton(onClick = {
+                        manualMinutes = (estimate + 5).coerceAtMost(480)
+                    }) { Text("＋5") }
+                }
+                // 快捷时长选项：一键设定常用时长。
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(15, 25, 30, 45, 60, 90, 120).forEach { preset ->
+                        FilterChip(
+                            selected = manualMinutes == preset,
+                            onClick = { manualMinutes = preset },
+                            label = { Text("$preset 分") }
+                        )
+                    }
+                }
+
                 // ===== 提醒时间 =====
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -297,7 +354,7 @@ fun TaskEditorDialog(
 
                 Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
                     Text(
-                        text = "预计 $estimate 分钟 · ${category.label} · 优先级${priority.label}",
+                        text = "${if (manualMinutes != null) "设定" else "预计"} $estimate 分钟 · ${category.label} · 优先级${priority.label}",
                         modifier = Modifier.padding(10.dp),
                         style = MaterialTheme.typography.labelLarge
                     )

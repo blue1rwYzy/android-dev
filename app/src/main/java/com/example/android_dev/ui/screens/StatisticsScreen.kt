@@ -50,6 +50,7 @@ import com.example.android_dev.domain.HeatmapData
 import com.example.android_dev.domain.SmartTask
 import com.example.android_dev.domain.TaskCategory
 import com.example.android_dev.domain.WeeklyReport
+import com.example.android_dev.ui.components.WeeklyReviewCard
 import kotlin.math.roundToInt
 
 // ========== 统计主屏幕 ==========
@@ -62,6 +63,7 @@ fun StatisticsScreen(
     loadCurve: List<CognitiveLoadRecord>,
     predictedLoadCurve: List<CognitiveLoadRecord>,
     achievements: List<AchievementBadge>,
+    plusModeEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -71,6 +73,14 @@ fun StatisticsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (plusModeEnabled) {
+            WeeklyReviewCard(
+                report = weeklyReport,
+                loadCurve = loadCurve,
+                heatmapData = heatmapData,
+                achievements = achievements
+            )
+        }
         WeeklyReportSummary(report = weeklyReport)
         CompletionTrendChart(dailyStats = weeklyReport.dailyStats)
         CategoryPieChart(

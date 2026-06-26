@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import com.example.android_dev.domain.ChatMessage
 import com.example.android_dev.domain.ChatRole
 import com.example.android_dev.domain.ExtractedTask
+import com.example.android_dev.ui.components.AiPlanPreviewPanel
+import com.example.android_dev.ui.components.AiPlannerQuickActions
 import com.example.android_dev.ui.components.ExtractedTasksDialog
 import com.example.android_dev.viewmodel.AiChatUiState
 
@@ -42,6 +44,7 @@ import com.example.android_dev.viewmodel.AiChatUiState
 @Composable
 fun AiChatScreen(
     state: AiChatUiState,
+    plusModeEnabled: Boolean = true,
     onSend: (String) -> Unit,
     onExtractTasks: (String, (List<ExtractedTask>) -> Unit, (String) -> Unit) -> Unit,
     onAddTasks: (List<ExtractedTask>) -> Unit
@@ -52,6 +55,7 @@ fun AiChatScreen(
     // 提取流程状态：正在提取的消息 id、提取出的任务、错误与加入成功提示。
     var extractingId by remember { mutableStateOf<String?>(null) }
     var previewTasks by remember { mutableStateOf<List<ExtractedTask>?>(null) }
+    var showPreviewDialog by remember { mutableStateOf(false) }
     var extractError by remember { mutableStateOf<String?>(null) }
     var addedHint by remember { mutableStateOf<String?>(null) }
 
@@ -131,6 +135,18 @@ fun AiChatScreen(
 
         // 输入栏。
         Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+        if (plusModeEnabled) previewTasks?.let { tasks ->
+            AiPlanPreviewPanel(
+                tasks = tasks,
+                onOpenPreview = { showPreviewDialog = true },
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
+
+        if (plusModeEnabled) {
+            AiPlannerQuickActions(onPick = { input = it })
+        }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -157,15 +173,16 @@ fun AiChatScreen(
     }
 
     // 提取任务预览弹窗：确认后批量加入计划。
-    previewTasks?.let { tasks ->
+    if (showPreviewDialog || !plusModeEnabled) previewTasks?.let { tasks ->
         ExtractedTasksDialog(
             initialTasks = tasks,
             onConfirm = { selected ->
                 onAddTasks(selected)
                 previewTasks = null
+                showPreviewDialog = false
                 addedHint = "✅ 已加入 ${selected.size} 个任务到计划。"
             },
-            onDismiss = { previewTasks = null }
+            onDismiss = { showPreviewDialog = false }
         )
     }
 }

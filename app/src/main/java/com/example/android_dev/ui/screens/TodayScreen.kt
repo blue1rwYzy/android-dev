@@ -67,9 +67,11 @@ import com.example.android_dev.ui.components.CognitiveControls
 import com.example.android_dev.ui.components.CognitiveStatusPanel
 import com.example.android_dev.ui.components.CompletionCheckbox
 import com.example.android_dev.ui.components.CountdownBubble
+import com.example.android_dev.ui.components.FocusModeDialog
 import com.example.android_dev.ui.components.SwipeableTaskRow
 import com.example.android_dev.ui.components.TaskBubbleCloud
 import com.example.android_dev.ui.components.MinimalFocusPanel
+import com.example.android_dev.ui.components.PlusSpatialTodayScreen
 import com.example.android_dev.ui.components.SchedulePanel
 import com.example.android_dev.ui.components.StatusBadge
 import com.example.android_dev.ui.components.percent
@@ -96,6 +98,7 @@ fun TodayScreen(
     schedule: List<ScheduleSlot>,
     nextTask: SmartTask?,
     nextRecommendation: TaskRecommendation?,
+    plusModeEnabled: Boolean = true,
     onSignalChange: (UserCognitiveSignal) -> Unit,
     onQuickAddTask: (String, String) -> Unit,
     onToggleTask: (SmartTask) -> Unit,
@@ -103,6 +106,20 @@ fun TodayScreen(
     onEditTask: (SmartTask) -> Unit = {},
     countdowns: List<Countdown> = emptyList()  // 新增
 ) {
+    if (plusModeEnabled) {
+        PlusSpatialTodayScreen(
+            tasks = tasks,
+            signal = signal,
+            snapshot = snapshot,
+            schedule = schedule,
+            nextRecommendation = nextRecommendation,
+            onToggleTask = onToggleTask,
+            onDeleteTask = onDeleteTask,
+            onEditTask = onEditTask
+        )
+        return
+    }
+
     val today = remember { LocalDate.now() }
     val activeTasks = tasks.filterNot { it.isCompleted }
     val completedCount = tasks.size - activeTasks.size
@@ -120,7 +137,6 @@ fun TodayScreen(
         )
     var forceFullSchedule by rememberSaveable { mutableStateOf(false) }
     val simplified = shouldSimplify && !forceFullSchedule
-
     val todayCountdowns = remember(countdowns) {
         countdowns
             .filter { !it.targetDate.isBefore(LocalDate.now()) }
@@ -235,6 +251,7 @@ fun TodayScreen(
             }
         }
     }
+
 }
 
 // 顶部进度头功能：三重活力环可视化（完成率 / 专注 / 习惯连续）+ 分类时间分布条 + 「现在做」高亮条。

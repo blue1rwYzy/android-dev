@@ -4,13 +4,17 @@ package com.example.android_dev.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -19,7 +23,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.dp
 import com.example.android_dev.ai.AiBreakdownRequest
 import com.example.android_dev.domain.AiBreakdownResult
 import com.example.android_dev.domain.SmartTask
@@ -54,6 +61,8 @@ fun SmartTodoApp(
     username: String,
     palette: AppPalette,
     onChangeTheme: (AppPalette) -> Unit,
+    plusModeEnabled: Boolean,
+    onChangePlusMode: (Boolean) -> Unit,
     chatState: AiChatUiState,
     onSendChat: (String) -> Unit,
     onClearChat: () -> Unit,
@@ -89,22 +98,52 @@ fun SmartTodoApp(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = if (plusModeEnabled) Color(0xFF07110F) else MaterialTheme.colorScheme.background,
         topBar = {
-            CenterAlignedTopAppBar(
+            if (!plusModeEnabled) CenterAlignedTopAppBar(
+                expandedHeight = 48.dp,
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("智能 TodoLife", fontWeight = FontWeight.Bold)
+                        Text(
+                            "智能 TodoLife",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
                         Text(
                             text = "${uiState.tasks.count { !it.isCompleted }} 项待办 · ${uiState.snapshot.level.label}",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
+                navigationIcon = {
+                    androidx.compose.material3.TextButton(
+                        onClick = { selectedTab = SmartTodoTab.PROFILE },
+                        modifier = Modifier.padding(start = 4.dp)
+                    ) {
+                        Text(
+                            SmartTodoTab.PROFILE.mark,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selectedTab == SmartTodoTab.PROFILE) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                },
                 actions = {
-                    androidx.compose.material3.TextButton(onClick = { showAiChat = true }) {
-                        Text("🤖 助手")
+                    androidx.compose.material3.TextButton(
+                        onClick = { showAiChat = true },
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        Text(
+                            "🤖 AI 助手",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -113,10 +152,12 @@ fun SmartTodoApp(
             )
         },
         bottomBar = {
-            SmartTodoBottomBar(selectedTab = selectedTab, onSelect = { selectedTab = it })
+            if (!plusModeEnabled) {
+                SmartTodoBottomBar(selectedTab = selectedTab, onSelect = { selectedTab = it })
+            }
         },
         floatingActionButton = {
-            if (selectedTab != SmartTodoTab.PROFILE) {
+            if (!plusModeEnabled && selectedTab != SmartTodoTab.PROFILE) {
                 FloatingActionButton(onClick = { showNewTaskEditor = true }) {
                     Text("+", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 }
@@ -126,7 +167,7 @@ fun SmartTodoApp(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(if (plusModeEnabled) androidx.compose.foundation.layout.PaddingValues() else innerPadding)
         ) {
             when (selectedTab) {
                 SmartTodoTab.TODAY -> TodayScreen(
@@ -136,6 +177,7 @@ fun SmartTodoApp(
                     schedule = uiState.schedule,
                     nextTask = uiState.nextTask,
                     nextRecommendation = uiState.nextRecommendation,
+                    plusModeEnabled = plusModeEnabled,
                     onSignalChange = onSignalChange,
                     onQuickAddTask = onQuickAddTask,
                     onToggleTask = onToggleTask,
@@ -174,10 +216,21 @@ fun SmartTodoApp(
                     tasks = uiState.tasks,
                     palette = palette,
                     onChangeTheme = onChangeTheme,
+                    plusModeEnabled = plusModeEnabled,
+                    onChangePlusMode = onChangePlusMode,
                     onOpenInsights = { showInsights = true },
                     onOpenStatistics = { showStatistics = true },
                     onOpenCountdown = { showCountdown = true },  // === 新增回调 ===
                     onLogout = onLogout
+                )
+            }
+
+            if (plusModeEnabled) {
+                PlusShellOverlay(
+                    selectedTab = selectedTab,
+                    onSelectTab = { selectedTab = it },
+                    onNewTask = { showNewTaskEditor = true },
+                    onOpenAi = { showAiChat = true }
                 )
             }
         }
@@ -230,7 +283,8 @@ fun SmartTodoApp(
                 heatmapData = uiState.heatmapData,
                 loadCurve = uiState.loadCurve,
                 predictedLoadCurve = uiState.predictedLoadCurve,
-                achievements = uiState.achievements
+                achievements = uiState.achievements,
+                plusModeEnabled = plusModeEnabled
             )
         }
     }
@@ -262,6 +316,7 @@ fun SmartTodoApp(
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                     AiChatScreen(
                         state = chatState,
+                        plusModeEnabled = plusModeEnabled,
                         onSend = onSendChat,
                         onExtractTasks = onExtractTasks,
                         onAddTasks = onAddExtractedTasks
@@ -288,6 +343,102 @@ fun SmartTodoApp(
 }
 
 // 高级功能弹层功能：用全屏对话框承载洞察/统计页，顶部提供返回按钮。
+@Composable
+private fun PlusShellOverlay(
+    selectedTab: SmartTodoTab,
+    onSelectTab: (SmartTodoTab) -> Unit,
+    onNewTask: () -> Unit,
+    onOpenAi: () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (selectedTab != SmartTodoTab.PROFILE) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 18.dp, start = 14.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                color = Color.White.copy(alpha = 0.10f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                onClick = { onSelectTab(SmartTodoTab.PROFILE) }
+            ) {
+                Text(
+                    SmartTodoTab.PROFILE.mark,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    color = Color.White.copy(alpha = 0.82f),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
+
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 18.dp, end = 14.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                color = Color.White.copy(alpha = 0.10f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PlusPill("AI", onOpenAi)
+                    PlusPill("+", onNewTask)
+                }
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 18.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
+            color = Color.White.copy(alpha = 0.10f),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(SmartTodoTab.TODAY).forEach { tab ->
+                    Surface(
+                        shape = CircleShape,
+                        color = if (selectedTab == tab) Color(0xFF8FE0A8).copy(alpha = 0.26f) else Color.Transparent,
+                        onClick = { onSelectTab(tab) }
+                    ) {
+                        Text(
+                            tab.mark,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            color = if (selectedTab == tab) Color(0xFFB8F5D0) else Color.White.copy(alpha = 0.68f),
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlusPill(text: String, onClick: () -> Unit) {
+    Surface(
+        shape = CircleShape,
+        color = Color.White.copy(alpha = 0.12f),
+        onClick = onClick
+    ) {
+        Text(
+            text,
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelMedium
+        )
+    }
+}
+
 @Composable
 private fun AdvancedSheet(onClose: () -> Unit, content: @Composable () -> Unit) {
     androidx.compose.ui.window.Dialog(

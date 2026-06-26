@@ -39,7 +39,7 @@ import kotlin.math.roundToInt
 @Composable
 fun SmartTodoBottomBar(selectedTab: SmartTodoTab, onSelect: (SmartTodoTab) -> Unit) {
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-        SmartTodoTab.entries.forEach { tab ->
+        SmartTodoTab.entries.filterNot { it == SmartTodoTab.PROFILE }.forEach { tab ->
             NavigationBarItem(
                 selected = selectedTab == tab,
                 onClick = { onSelect(tab) },
@@ -197,7 +197,7 @@ enum class SmartTodoTab(val label: String, val mark: String) {
     BOARD("看板", "板"),
     CALENDAR("日历", "历"),
     TASKS("列表", "单"),
-    PROFILE("我的", "我")
+    PROFILE("我的", "个人中心")
 }
 
 // 百分比格式化功能：把 0 到 1 的浮点值转换成百分比文本。

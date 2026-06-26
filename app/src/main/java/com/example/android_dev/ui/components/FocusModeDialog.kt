@@ -44,6 +44,9 @@ import kotlinx.coroutines.delay
 @Composable
 fun FocusModeDialog(
     task: SmartTask,
+    todayCompleted: Int = 0,
+    todayTotal: Int = 0,
+    plusModeEnabled: Boolean = true,
     onComplete: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -81,7 +84,15 @@ fun FocusModeDialog(
                 verticalArrangement = Arrangement.Center
             ) {
                 if (finished) {
-                    FocusFinished(task = task, onComplete = onComplete, onDismiss = onDismiss)
+                    FocusFinished(
+                        task = task,
+                        focusedMinutes = totalSeconds / 60,
+                        todayCompleted = todayCompleted,
+                        todayTotal = todayTotal,
+                        plusModeEnabled = plusModeEnabled,
+                        onComplete = onComplete,
+                        onDismiss = onDismiss
+                    )
                 } else {
                     Text(
                         if (task.isHabit) "习惯专注" else "专注进行中",
@@ -140,7 +151,15 @@ fun FocusModeDialog(
 
 // 专注完成态功能：展示「种下成就种子」的庆祝文案，确认后把任务标记完成。
 @Composable
-private fun FocusFinished(task: SmartTask, onComplete: () -> Unit, onDismiss: () -> Unit) {
+private fun FocusFinished(
+    task: SmartTask,
+    focusedMinutes: Int,
+    todayCompleted: Int,
+    todayTotal: Int,
+    plusModeEnabled: Boolean,
+    onComplete: () -> Unit,
+    onDismiss: () -> Unit
+) {
     Text("🌱", style = MaterialTheme.typography.displayLarge)
     Spacer(Modifier.height(16.dp))
     Text(
@@ -155,7 +174,21 @@ private fun FocusFinished(task: SmartTask, onComplete: () -> Unit, onDismiss: ()
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
-    Spacer(Modifier.height(32.dp))
+    if (plusModeEnabled) {
+        Spacer(Modifier.height(18.dp))
+        FocusResultCard(
+            task = task,
+            focusedMinutes = focusedMinutes,
+            todayCompleted = todayCompleted,
+            todayTotal = todayTotal
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(onClick = { }) { Text("保存成果卡") }
+            OutlinedButton(onClick = { }) { Text("分享成果卡") }
+        }
+    }
+    Spacer(Modifier.height(24.dp))
     Button(
         onClick = {
             // 仅在任务尚未完成时标记完成，避免重复打卡。

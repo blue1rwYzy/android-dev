@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.example.android_dev.data.AccountRepository
 import com.example.android_dev.data.LocalSmartTodoRepository
+import com.example.android_dev.data.PlusModePreference
 import com.example.android_dev.data.ThemePreference
 import com.example.android_dev.reminder.NotificationHelper
 import com.example.android_dev.reminder.ReminderScheduler
@@ -28,6 +29,7 @@ class MainActivity : ComponentActivity() {
 
     private val accountRepository by lazy { AccountRepository(applicationContext) }
     private val themePreference by lazy { ThemePreference(applicationContext) }
+    private val plusModePreference by lazy { PlusModePreference(applicationContext) }
 
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* 用户选择即可，无需处理结果 */ }
@@ -44,6 +46,11 @@ class MainActivity : ComponentActivity() {
             val onChangeTheme: (AppPalette) -> Unit = {
                 palette = it
                 themePreference.save(it)
+            }
+            var plusModeEnabled by remember { mutableStateOf(plusModePreference.load()) }
+            val onChangePlusMode: (Boolean) -> Unit = {
+                plusModeEnabled = it
+                plusModePreference.save(it)
             }
 
             AndroiddevTheme(dynamicColor = false, palette = palette) {
@@ -67,6 +74,8 @@ class MainActivity : ComponentActivity() {
                         username = user,
                         palette = palette,
                         onChangeTheme = onChangeTheme,
+                        plusModeEnabled = plusModeEnabled,
+                        onChangePlusMode = onChangePlusMode,
                         chatState = chatState,
                         onSendChat = viewModel::sendChatMessage,
                         onClearChat = viewModel::clearChat,

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.FilterChip
 import com.example.android_dev.data.AccountRepository
 import com.example.android_dev.domain.SmartTask
+import com.example.android_dev.ui.components.TodoLifePlusCard
 import com.example.android_dev.ui.theme.AppPalette
 
 // 我的页面功能：显示账户信息、任务概览、主题切换，并提供登出与进入高级洞察/统计的入口。
@@ -39,9 +40,11 @@ fun ProfileScreen(
     tasks: List<SmartTask>,
     palette: AppPalette,
     onChangeTheme: (AppPalette) -> Unit,
+    plusModeEnabled: Boolean,
+    onChangePlusMode: (Boolean) -> Unit,
     onOpenInsights: () -> Unit,
     onOpenStatistics: () -> Unit,
-    onOpenCountdown: () -> Unit,  // 新增
+    onOpenCountdown: () -> Unit,
     onLogout: () -> Unit
 ) {
     val isGuest = username == AccountRepository.GUEST
@@ -54,7 +57,12 @@ fun ProfileScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(
+                start = 20.dp,
+                end = 20.dp,
+                top = if (plusModeEnabled) 24.dp else 20.dp,
+                bottom = if (plusModeEnabled) 92.dp else 20.dp
+            ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // 账户卡片。
@@ -100,32 +108,32 @@ fun ProfileScreen(
             OverviewTile("习惯连续", "${habitStreak}天", Modifier.weight(1f))
         }
 
+        TodoLifePlusCard(
+            enabled = plusModeEnabled,
+            onEnabledChange = onChangePlusMode
+        )
+
         // 外观主题切换。
         Text("外观主题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AppPalette.entries.forEach { option ->
-                val emoji = when (option) {
-                    AppPalette.WECHAT -> "💬"
-                    AppPalette.PINK_BLUE -> "🌸"
-                    AppPalette.TEAL -> "🌿"
-                }
                 FilterChip(
                     selected = palette == option,
                     onClick = { onChangeTheme(option) },
-                    label = { Text("$emoji ${option.label}") }
+                    label = { Text(option.label) }
                 )
             }
         }
 
         Text("高级功能", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         OutlinedButton(onClick = onOpenInsights, modifier = Modifier.fillMaxWidth()) {
-            Text("🧠 智能洞察与任务建议")
+            Text("智能洞察与任务建议")
         }
         OutlinedButton(onClick = onOpenStatistics, modifier = Modifier.fillMaxWidth()) {
-            Text("📊 统计 / 热力图 / 成就")
+            Text("统计 / 热力图 / 成就")
         }
         OutlinedButton(onClick = onOpenCountdown, modifier = Modifier.fillMaxWidth()) {
-            Text("⏳ 未来倒计时")
+            Text("未来倒计时")
         }
 
         Button(
@@ -154,3 +162,4 @@ private fun OverviewTile(label: String, value: String, modifier: Modifier = Modi
         }
     }
 }
+

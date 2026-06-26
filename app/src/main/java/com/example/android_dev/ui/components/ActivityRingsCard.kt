@@ -253,14 +253,14 @@ private fun FlowField(
     val transition = rememberInfiniteTransition(label = "flow")
     // 相位 0~2π 循环平移；intensity 越高，一个周期越短（流得越快）。
     val durationMillis = (9000 - (intensity.coerceIn(0f, 1f) * 4000)).toInt()
-    val phase by transition.animateFloat(
+    val travel by transition.animateFloat(
         initialValue = 0f,
-        targetValue = (2 * Math.PI).toFloat(),
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = durationMillis, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "phase"
+        label = "flowTravel"
     )
     // 条带数量随强度在 3~6 之间。
     val streams = (3 + (intensity.coerceIn(0f, 1f) * 3)).toInt().coerceIn(3, 6)
@@ -270,20 +270,28 @@ private fun FlowField(
         val h = size.height
         if (w <= 0f || h <= 0f) return@Canvas
         val amplitude = h * 0.10f
+        val waveLength = w * 0.72f
+        val shift = travel * waveLength
+        val step = (waveLength / 22f).coerceAtLeast(8f)
         for (i in 0 until streams) {
             // 每条带的基准高度均匀分布，相位各自错开，营造层叠流动。
             val baseY = h * (0.18f + 0.64f * (i / (streams - 1f).coerceAtLeast(1f)))
-            val streamPhase = phase + i * 0.9f
+            val streamPhase = i * 0.9f
             val alpha = 0.05f + 0.05f * (1f - i / streams.toFloat())
             val path = Path().apply {
-                moveTo(0f, baseY)
-                var x = 0f
-                val step = w / 28f
-                while (x <= w) {
+                var x = -waveLength
+                var firstPoint = true
+                while (x <= w + waveLength) {
+                    val normalized = ((x + shift) / waveLength) * 2f * Math.PI.toFloat()
                     val y = baseY +
-                        sin((x / w) * 2f * Math.PI.toFloat() * 1.5f + streamPhase) * amplitude +
-                        sin((x / w) * 2f * Math.PI.toFloat() * 3f + streamPhase * 1.4f) * (amplitude * 0.35f)
-                    lineTo(x, y)
+                        sin(normalized + streamPhase) * amplitude +
+                        sin(normalized * 2f + streamPhase * 1.4f) * (amplitude * 0.35f)
+                    if (firstPoint) {
+                        moveTo(x, y)
+                        firstPoint = false
+                    } else {
+                        lineTo(x, y)
+                    }
                     x += step
                 }
             }
