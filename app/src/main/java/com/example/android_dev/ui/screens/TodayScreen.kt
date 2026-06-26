@@ -98,7 +98,7 @@ fun TodayScreen(
     schedule: List<ScheduleSlot>,
     nextTask: SmartTask?,
     nextRecommendation: TaskRecommendation?,
-    plusModeEnabled: Boolean = true,
+    plusModeEnabled: Boolean = false,
     onSignalChange: (UserCognitiveSignal) -> Unit,
     onQuickAddTask: (String, String) -> Unit,
     onToggleTask: (SmartTask) -> Unit,

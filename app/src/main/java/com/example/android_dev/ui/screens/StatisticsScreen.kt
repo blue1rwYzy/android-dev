@@ -63,7 +63,7 @@ fun StatisticsScreen(
     loadCurve: List<CognitiveLoadRecord>,
     predictedLoadCurve: List<CognitiveLoadRecord>,
     achievements: List<AchievementBadge>,
-    plusModeEnabled: Boolean = true,
+    plusModeEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(

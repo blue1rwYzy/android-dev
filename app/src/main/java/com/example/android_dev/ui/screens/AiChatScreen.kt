@@ -44,7 +44,7 @@ import com.example.android_dev.viewmodel.AiChatUiState
 @Composable
 fun AiChatScreen(
     state: AiChatUiState,
-    plusModeEnabled: Boolean = true,
+    plusModeEnabled: Boolean = false,
     onSend: (String) -> Unit,
     onExtractTasks: (String, (List<ExtractedTask>) -> Unit, (String) -> Unit) -> Unit,
     onAddTasks: (List<ExtractedTask>) -> Unit

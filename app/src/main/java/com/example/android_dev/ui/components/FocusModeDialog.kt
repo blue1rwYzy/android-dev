@@ -46,7 +46,7 @@ fun FocusModeDialog(
     task: SmartTask,
     todayCompleted: Int = 0,
     todayTotal: Int = 0,
-    plusModeEnabled: Boolean = true,
+    plusModeEnabled: Boolean = false,
     onComplete: () -> Unit,
     onDismiss: () -> Unit
 ) {

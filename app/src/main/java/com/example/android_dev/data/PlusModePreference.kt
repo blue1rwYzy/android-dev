@@ -6,7 +6,7 @@ class PlusModePreference(context: Context) {
     private val prefs = context.applicationContext
         .getSharedPreferences("smart_todo_plus_mode", Context.MODE_PRIVATE)
 
-    fun load(): Boolean = prefs.getBoolean(KEY_PLUS_ENABLED, true)
+    fun load(): Boolean = prefs.getBoolean(KEY_PLUS_ENABLED, false)
 
     fun save(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_PLUS_ENABLED, enabled).apply()
